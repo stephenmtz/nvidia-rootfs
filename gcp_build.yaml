@@ -1,0 +1,190 @@
+substitutions:
+  _UPLOAD_PATH: 'dev'
+  _BASE_IMAGE: 'sample_fs.tbz2'
+  _BASE_IMAGE_PATH: 'base-images'
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/gcs-bucket/versions/latest
+      env: GCS_BUCKET
+    - versionName: projects/$PROJECT_ID/secrets/gcs-builds-bucket/versions/latest
+      env: GCS_BUILDS_BUCKET
+
+steps:
+  - id: 'register-qemu'
+    name: 'docker'
+    args:
+      - 'run'
+      - '--rm'
+      - '--privileged'
+      - 'multiarch/qemu-user-static'
+      - '--reset'
+      - '-p'
+      - 'yes'
+
+  - id: 'pull-base-rootfs'
+    name: 'gcr.io/cloud-builders/gsutil'
+    waitFor: ['-']
+    secretEnv: ['GCS_BUCKET']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+          echo "Pulling base rootfs from GCS"
+          gsutil cp gs://$$GCS_BUCKET/${_BASE_IMAGE_PATH}/${_BASE_IMAGE} \
+            /workspace/nvidia-rootfs.tbz2
+          echo "Base rootfs pulled: $$(du -sh /workspace/nvidia-rootfs.tbz2 | cut -f1)"
+
+  - id: 'extract-rootfs'
+    name: 'ubuntu:22.04'
+    entrypoint: 'bash'
+    args:
+      - '-cx'
+      - |
+          apt-get update -qq
+          apt-get install -y qemu-user-static bzip2
+          
+          mkdir -p /workspace/rootfs
+          echo "Extracting NVIDIA rootfs"
+          tar -xjpf /workspace/nvidia-rootfs.tbz2 -C /workspace/rootfs
+
+          cp /usr/bin/qemu-aarch64-static /workspace/rootfs/usr/bin/
+          echo "Rootfs extracted: $(du -sh /workspace/rootfs | cut -f1)"
+
+  - id: 'install-packages'
+    name: 'ubuntu:22.04'
+    waitFor: ['extract-rootfs']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+          set -euxo pipefail
+
+          PACKAGES=$$(grep -v '^\s*#' /workspace/config/packages.txt \
+            | grep -v '^\s*$' \
+            | tr '\n' ' ')
+
+          echo "Installing packages: $$PACKAGES"
+
+          cp /etc/resolv.conf /workspace/rootfs/etc/resolv.conf
+
+          mount --bind /dev /workspace/rootfs/dev
+          mount --bind /proc /workspace/rootfs/proc
+          mount --bind /sys /workspace/rootfs/sys
+          trap 'umount /workspace/rootfs/dev /workspace/rootfs/proc /workspace/rootfs/sys' EXIT
+
+          chroot /workspace/rootfs /bin/bash -c "
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq
+            apt-get install -y $$PACKAGES
+            apt-get clean
+            rm -rf /var/lib/apt/lists/*
+          "
+
+          echo "Packages installed successfully"
+
+  - id: 'validate-rootfs'
+    name: 'ubuntu:22.04'
+    waitFor: ['install-packages']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+          set -euxo pipefail
+
+          echo "Validating rootfs"
+
+          for bin in htop nano curl wget; do
+            if chroot /workspace/rootfs which $$bin > /dev/null 2>&1; then
+              echo "$$bin found"
+            else
+              echo "FAIL: $$bin not found in rootfs"
+              exit 1
+            fi
+          done
+
+          if [ -f /workspace/rootfs/lib/systemd/systemd ]; then
+            echo "systemd found"
+          else
+            echo "FAIL: systemd missing"
+            exit 1
+          fi
+
+          SIZE=$$(du -sb /workspace/rootfs | cut -f1)
+          if [ "$$SIZE" -gt 200000000 ]; then
+            echo "rootfs size OK ($$(du -sh /workspace/rootfs | cut -f1))"
+          else
+            echo "FAIL: rootfs too small ($$SIZE bytes)"
+            exit 1
+          fi
+
+          echo "All validation checks passed"
+
+  - id: 'repack-rootfs'
+    name: 'ubuntu:22.04'
+    waitFor: ['validate-rootfs']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+          set -euxo pipefail
+
+          rm /workspace/rootfs/usr/bin/qemu-aarch64-static
+
+          echo "Repacking rootfs"
+          tar -czpf /workspace/agx-orin-rootfs-${COMMIT_SHA}.tar.gz \
+            -C /workspace/rootfs .
+
+          echo "Tarball size: $$(du -sh /workspace/agx-orin-rootfs-${COMMIT_SHA}.tar.gz | cut -f1)"
+
+  - id: 'generate-artifacts'
+    name: 'ubuntu:22.04'
+    waitFor: ['repack-rootfs']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+          set -euxo pipefail
+
+          cd /workspace
+
+          sha256sum agx-orin-rootfs-${COMMIT_SHA}.tar.gz \
+            > agx-orin-rootfs-${COMMIT_SHA}.sha256
+
+          cat > manifest-${COMMIT_SHA}.json << EOF
+          {
+            "COMMIT_SHA": "${COMMIT_SHA}",
+            "build_time": "$$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "base_image": "${_BASE_IMAGE}",
+            "arch": "arm64",
+            "upload_path": "${_UPLOAD_PATH}",
+            "sha256": "$$(sha256sum agx-orin-rootfs-${COMMIT_SHA}.tar.gz | cut -d' ' -f1)",
+            "size_bytes": $$(stat -c%s agx-orin-rootfs-${COMMIT_SHA}.tar.gz)
+          }
+          EOF
+
+          echo "Artifacts generated"
+          cat manifest-${COMMIT_SHA}.json
+
+  - id: 'upload-artifacts'
+    name: 'gcr.io/cloud-builders/gsutil'
+    waitFor: ['generate-artifacts']
+    secretEnv: ['GCS_BUILDS_BUCKET']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+          set -euxo pipefail
+
+          gsutil -m cp \
+            /workspace/agx-orin-rootfs-${COMMIT_SHA}.tar.gz \
+            /workspace/agx-orin-rootfs-${COMMIT_SHA}.sha256 \
+            /workspace/manifest-${COMMIT_SHA}.json \
+            gs://$$GCS_BUILDS_BUCKET/${_UPLOAD_PATH}/
+
+          gsutil cp \
+            gs://$$GCS_BUILDS_BUCKET/${_UPLOAD_PATH}/agx-orin-rootfs-${COMMIT_SHA}.tar.gz \
+            gs://$$GCS_BUILDS_BUCKET/agx-orin-rootfs-latest.tar.gz
+
+          echo "Uploaded to gs://$$GCS_BUILDS_BUCKET/${_UPLOAD_PATH}/"
+          echo "Latest pointer updated"

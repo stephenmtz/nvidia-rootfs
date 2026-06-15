@@ -1,0 +1,10 @@
+# AGX Orin base packages
+
+bash-completion
+netplan.io
+screen
+net-tools
+curl
+wget
+htop
+nano

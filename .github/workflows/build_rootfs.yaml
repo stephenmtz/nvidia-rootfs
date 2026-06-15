@@ -1,0 +1,78 @@
+name: Build AGX Orin RootFS
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+    paths:
+      - 'gcp_build.yaml'
+      - 'config/packages.txt'
+      - 'scripts/**'
+      - '.github/workflows/build_rootfs.yaml'
+  workflow_dispatch:
+
+env:
+  GCP_PROJECT: ${{ vars.GCP_PROJECT }}
+  REGION: us-central1
+
+jobs:
+  build-rootfs:
+    name: Build & Upload RootFS
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write 
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Determine build type
+        id: build-type
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "UPLOAD_PATH=releases" >> $GITHUB_ENV
+            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+          else
+            echo "UPLOAD_PATH=dev" >> $GITHUB_ENV
+            echo "VERSION=${{ github.sha }}" >> $GITHUB_ENV
+          fi
+
+      - name: Submit Cloud Build job
+        run: |
+          gcloud builds submit \
+            --config=gcp_build.yaml  \
+            --project=${{ env.GCP_PROJECT }} \
+            --region=${{ env.REGION }} \
+            --substitutions=COMMIT_SHA=${{ github.sha }},_UPLOAD_PATH=${{ env.UPLOAD_PATH }} 
+
+      - name: Post build summary
+        if: success()
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+
+          | Field | Value |
+          |---|---|
+          | Version | \`${{ env.VERSION }}\` |
+          | Commit SHA | \`${{ github.sha }}\` |
+          | Upload path | \`${{ env.UPLOAD_PATH }}\` |
+          | Triggered by | \`${{ github.actor }}\` |
+          | Workflow run | [View run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
+
+          **Download latest:**
+          \`\`\`bash
+          gsutil cp gs://agx-orin-builds/agx-orin-rootfs-latest.tar.gz .
+          \`\`\`
+          EOF
+          
