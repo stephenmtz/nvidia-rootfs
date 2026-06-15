@@ -1,0 +1,10 @@
+.DS_Store
+*.swp
+
+rootfs/
+*.tar.gz
+*.tbz2
+*.sha256
+
+.vscode/
+.idea/
