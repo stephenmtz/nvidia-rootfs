@@ -1,8 +1,0 @@
-auditConfigs:
-  - auditLogConfigs:
-    - logType: DATA_READ
-    - logType: DATA_WRITE
-    service: storage.googleapis.com
-  - auditLogConfigs:
-    - logType: DATA_READ
-    service: secretmanager.googleapis.com
