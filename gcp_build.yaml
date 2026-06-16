@@ -36,7 +36,7 @@ steps:
           echo "Base rootfs pulled: $$(du -sh /workspace/nvidia-rootfs.tbz2 | cut -f1)"
 
   - id: 'extract-rootfs'
-    name: 'ubuntu:22.04'
+    name: 'us-central1-docker.pkg.dev/nvidia-project-499604/cloud-build-cache/ubuntu:22.04'
     entrypoint: 'bash'
     args:
       - '-cx'
@@ -52,8 +52,7 @@ steps:
           echo "Rootfs extracted: $(du -sh /workspace/rootfs | cut -f1)"
 
   - id: 'install-packages'
-    name: 'ubuntu:22.04'
-    waitFor: ['extract-rootfs']
+    name: 'us-central1-docker.pkg.dev/nvidia-project-499604/cloud-build-cache/ubuntu:22.04'
     entrypoint: 'bash'
     args:
       - '-c'
@@ -84,7 +83,7 @@ steps:
           echo "Packages installed successfully"
 
   - id: 'validate-rootfs'
-    name: 'ubuntu:22.04'
+    name: 'us-central1-docker.pkg.dev/nvidia-project-499604/cloud-build-cache/ubuntu:22.04'
     waitFor: ['install-packages']
     entrypoint: 'bash'
     args:
@@ -121,7 +120,7 @@ steps:
           echo "All validation checks passed"
 
   - id: 'repack-rootfs'
-    name: 'ubuntu:22.04'
+    name: 'us-central1-docker.pkg.dev/nvidia-project-499604/cloud-build-cache/ubuntu:22.04'
     waitFor: ['validate-rootfs']
     entrypoint: 'bash'
     args:
@@ -138,7 +137,7 @@ steps:
           echo "Tarball size: $$(du -sh /workspace/agx-orin-rootfs-${COMMIT_SHA}.tar.gz | cut -f1)"
 
   - id: 'generate-artifacts'
-    name: 'ubuntu:22.04'
+    name: 'us-central1-docker.pkg.dev/nvidia-project-499604/cloud-build-cache/ubuntu:22.04'
     waitFor: ['repack-rootfs']
     entrypoint: 'bash'
     args:
