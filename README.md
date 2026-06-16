@@ -14,12 +14,6 @@ Automated pipeline that customizes the official NVIDIA Jetson Linux sample root 
 
 Add or remove packages by editing `config/packages.txt` and pushing to main. The pipeline triggers automatically.
 
-## Download
-
-```bash
-gsutil cp gs://agx-orin-builds/agx-orin-rootfs-latest.tar.gz .
-```
-
 ## Stack
 
 - GitHub Actions
