@@ -162,8 +162,14 @@ steps:
           }
           EOF
 
-          echo "Artifacts generated"
-          cat manifest-${COMMIT_SHA}.json
+          mkdir -p /workspace/bundle
+          mv agx-orin-rootfs-${COMMIT_SHA}.tar.gz /workspace/bundle/
+          mv agx-orin-rootfs-${COMMIT_SHA}.sha256 /workspace/bundle/
+          mv manifest-${COMMIT_SHA}.json /workspace/bundle/
+
+          tar -cf /workspace/agx-orin-bundle-${COMMIT_SHA}.tar -C /workspace/bundle .
+
+          echo "Unified release bundle generated"
 
   - id: 'upload-artifacts'
     name: 'gcr.io/cloud-builders/gsutil'
@@ -175,15 +181,13 @@ steps:
       - |
           set -euxo pipefail
 
-          gsutil -m cp \
-            /workspace/agx-orin-rootfs-${COMMIT_SHA}.tar.gz \
-            /workspace/agx-orin-rootfs-${COMMIT_SHA}.sha256 \
-            /workspace/manifest-${COMMIT_SHA}.json \
+          gsutil cp \
+            /workspace/agx-orin-bundle-${COMMIT_SHA}.tar \
             gs://$$GCS_BUILDS_BUCKET/${_UPLOAD_PATH}/
 
           gsutil cp \
-            gs://$$GCS_BUILDS_BUCKET/${_UPLOAD_PATH}/agx-orin-rootfs-${COMMIT_SHA}.tar.gz \
-            gs://$$GCS_BUILDS_BUCKET/agx-orin-rootfs-latest.tar.gz
+            gs://$$GCS_BUILDS_BUCKET/${_UPLOAD_PATH}/agx-orin-bundle-${COMMIT_SHA}.tar \
+            gs://$$GCS_BUILDS_BUCKET/agx-orin-bundle-latest.tar
 
-          echo "Uploaded to gs://$$GCS_BUILDS_BUCKET/${_UPLOAD_PATH}/"
-          echo "Latest pointer updated"
+          echo "Uploaded atomic bundle to gs://$$GCS_BUILDS_BUCKET/${_UPLOAD_PATH}/"
+          echo "Latest bundle pointer updated"
