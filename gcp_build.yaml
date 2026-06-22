@@ -60,7 +60,7 @@ steps:
           set -euxo pipefail
           
           PACKAGES=$(grep '  - ' /workspace/config/built_config.yaml | sed 's/  - //' | tr '\n' ' ') 
-                   
+
           echo "Installing packages: $$PACKAGES"
 
           cp /etc/resolv.conf /workspace/rootfs/etc/resolv.conf
@@ -79,7 +79,6 @@ steps:
           "
 
           echo "Packages installed successfully"
-
   - id: 'configure-network'
     name: 'us-central1-docker.pkg.dev/nvidia-project-499604/cloud-build-cache/ubuntu:22.04'
     waitFor: ['install-packages']
@@ -87,9 +86,18 @@ steps:
     args:
       - '-c'
       - |
+          set -ex
           mkdir -p /workspace/rootfs/etc/netplan/
-          cp /workspace/config/network.yaml /workspace/rootfs/etc/netplan/01-netcfg.yaml
-          chmod 600 /workspace/rootfs/etc/netplan/01-netcfg.yaml
+          
+          if [ ! -f /workspace/config/network.yaml ]; then
+            echo "Error: Source config/network.yaml not found!"
+            exit 1
+          fi
+          
+          cp /workspace/config/network.yaml /workspace/rootfs/etc/netplan/config.yaml
+          chmod 600 /workspace/rootfs/etc/netplan/config.yaml
+          
+          ls -lh /workspace/rootfs/etc/netplan/config.yaml
 
   - id: 'validate-rootfs'
     name: 'us-central1-docker.pkg.dev/nvidia-project-499604/cloud-build-cache/ubuntu:22.04'
