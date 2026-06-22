@@ -79,6 +79,7 @@ steps:
           "
 
           echo "Packages installed successfully"
+
   - id: 'configure-network'
     name: 'us-central1-docker.pkg.dev/nvidia-project-499604/cloud-build-cache/ubuntu:22.04'
     waitFor: ['install-packages']
