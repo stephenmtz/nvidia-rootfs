@@ -59,9 +59,9 @@ steps:
       - |
           set -euxo pipefail
 
-          PACKAGES=$$(grep -v '^\s*#' /workspace/config/packages.txt \
-            | grep -v '^\s*$' \
-            | tr '\n' ' ')
+          apt-get update -qq && apt-get install -y yq 
+          
+          PACKAGES=$(yq eval '.packages | join(" ")' -r /workspace/config/built_config.yaml)
 
           echo "Installing packages: $$PACKAGES"
 
@@ -81,7 +81,7 @@ steps:
           "
 
           echo "Packages installed successfully"
-          
+
   - id: 'configure-network'
     name: 'us-central1-docker.pkg.dev/nvidia-project-499604/cloud-build-cache/ubuntu:22.04'
     waitFor: ['install-packages']
@@ -90,7 +90,6 @@ steps:
       - '-c'
       - |
           mkdir -p /workspace/rootfs/etc/netplan/
-          # Ensure this filename matches exactly what you check in validation
           cp /workspace/config/network.yaml /workspace/rootfs/etc/netplan/01-netcfg.yaml
           chmod 600 /workspace/rootfs/etc/netplan/01-netcfg.yaml
 

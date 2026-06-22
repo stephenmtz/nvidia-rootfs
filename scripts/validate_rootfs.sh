@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOTFS="${1:-/workspace/rootfs}"
-PACKAGES_FILE="${2:-/workspace/src/config/packages.txt}"
+PACKAGES_FILE="${2:-/workspace/src/config/built_package.yaml}"
 
 PASS=0
 FAIL=0
