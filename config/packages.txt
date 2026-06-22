@@ -8,3 +8,9 @@ curl
 wget
 htop
 nano
+openssh-server
+ca-certificates
+iproute2
+iptables
+rsync
+i2c-tools
