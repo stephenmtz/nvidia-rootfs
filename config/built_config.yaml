@@ -1,0 +1,10 @@
+system:
+  packages:
+    - bash-completion
+    - netplan.io
+    - screen
+    - net-tools
+    - openssh-server
+    - curl
+    - htop
+    - chrony

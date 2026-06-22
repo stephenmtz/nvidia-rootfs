@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOTFS="${1:-/workspace/rootfs}"
-PACKAGES_FILE="${2:-/workspace/config/packages.txt}"
+PACKAGES_FILE="${2:-/workspace/config/built_config.yaml"
 
 if [ ! -d "$ROOTFS" ]; then
   echo "Error: rootfs directory not found: $ROOTFS"
@@ -23,6 +23,8 @@ if [ -z "$PACKAGES" ]; then
   echo "Error: no packages found in $PACKAGES_FILE"
   exit 1
 fi
+
+PACKAGES=$(yq eval '.packages | join(" ")' "$CONFIG_FILE")
 
 echo "Installing packages: $PACKAGES"
 

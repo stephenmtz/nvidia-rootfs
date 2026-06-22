@@ -81,17 +81,35 @@ steps:
           "
 
           echo "Packages installed successfully"
-
-  - id: 'validate-rootfs'
+          
+  - id: 'configure-network'
     name: 'us-central1-docker.pkg.dev/nvidia-project-499604/cloud-build-cache/ubuntu:22.04'
     waitFor: ['install-packages']
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-          set -euxo pipefail
+          mkdir -p /workspace/rootfs/etc/netplan/
+          # Ensure this filename matches exactly what you check in validation
+          cp /workspace/config/network.yaml /workspace/rootfs/etc/netplan/01-netcfg.yaml
+          chmod 600 /workspace/rootfs/etc/netplan/01-netcfg.yaml
 
-          echo "Validating rootfs"
+  - id: 'validate-rootfs'
+    name: 'us-central1-docker.pkg.dev/nvidia-project-499604/cloud-build-cache/ubuntu:22.04'
+    waitFor: ['configure-network']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+          set -euxo pipefail
+          echo "Validating rootfs and network config"
+
+          if [ -f /workspace/rootfs/etc/netplan/config.yaml ]; then
+            echo "Network config found"
+          else
+            echo "FAIL: Network config missing"
+            exit 1
+          fi
 
           for bin in htop nano curl wget; do
             if chroot /workspace/rootfs which $$bin > /dev/null 2>&1; then

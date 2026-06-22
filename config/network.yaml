@@ -1,0 +1,13 @@
+network:
+  version: 2
+  renderer: NetworkManager
+  ethernets:
+    mgbe0:
+      dhcp4: false
+      addresses:
+        - 10.0.0.66/24
+    mgbe1:
+      dhcp4: false
+      addresses:
+        - 10.0.0.67/24
+        
