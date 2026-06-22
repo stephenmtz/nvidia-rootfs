@@ -58,11 +58,9 @@ steps:
       - '-c'
       - |
           set -euxo pipefail
-
-          apt-get update -qq && apt-get install -y yq 
           
-          PACKAGES=$(yq eval '.packages | join(" ")' -r /workspace/config/built_config.yaml)
-
+          PACKAGES=$(python3 -c "import yaml; print(' '.join(yaml.safe_load(open('/workspace/config/built_config.yaml'))['packages']))")
+          
           echo "Installing packages: $$PACKAGES"
 
           cp /etc/resolv.conf /workspace/rootfs/etc/resolv.conf
