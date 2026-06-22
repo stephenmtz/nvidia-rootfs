@@ -59,8 +59,8 @@ steps:
       - |
           set -euxo pipefail
           
-          PACKAGES=$(python3 -c "import yaml; print(' '.join(yaml.safe_load(open('/workspace/config/built_config.yaml'))['packages']))")
-          
+          PACKAGES=$(grep '  - ' /workspace/config/built_config.yaml | sed 's/  - //' | tr '\n' ' ') 
+                   
           echo "Installing packages: $$PACKAGES"
 
           cp /etc/resolv.conf /workspace/rootfs/etc/resolv.conf
