@@ -62,15 +62,25 @@ for pkg in $PACKAGES; do
   fi
 done
 
-echo "Running binary smoke tests"
+echo "Verifying package integrity"
 
-for bin in htop nano curl wget; do
-  if chroot "$ROOTFS" which "$bin" > /dev/null 2>&1; then
-    check_pass "$bin executable found"
+PACKAGES=$(grep '  - ' "$PACKAGES_FILE" | sed 's/  - //')
+
+for pkg in $PACKAGES; do
+  if chroot "$ROOTFS" dpkg -s "$pkg" | grep -q "Status: install ok installed"; then
+    check_pass "$pkg is correctly installed in rootfs"
   else
-    check_fail "$bin executable not found"
+    check_fail "$pkg is missing or failed to install"
   fi
 done
+
+echo "Checking Network Configuration"
+
+if chroot "$ROOTFS" netplan generate > /dev/null 2>&1; then
+  check_pass "Netplan configuration syntax is valid"
+else
+  check_fail "Netplan configuration is invalid"
+fi
 
 echo ""
 echo "==============================="
